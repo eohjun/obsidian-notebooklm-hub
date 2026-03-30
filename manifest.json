@@ -1,9 +1,9 @@
 {
-  "id": "notebooklm-sync",
-  "name": "NotebookLM Sync",
-  "version": "0.3.6",
+  "id": "notebooklm-hub",
+  "name": "NotebookLM Hub",
+  "version": "1.0.0",
   "minAppVersion": "1.0.0",
-  "description": "Sync Obsidian permanent notes to Google NotebookLM",
+  "description": "Comprehensive NotebookLM integration — chat, notebooks, sources, studio artifacts, research, batch operations",
   "author": "eohjun",
   "authorUrl": "https://github.com/eohjun",
   "isDesktopOnly": true

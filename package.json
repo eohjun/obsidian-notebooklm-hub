@@ -1,14 +1,14 @@
 {
-  "name": "obsidian-notebooklm-sync",
-  "version": "0.3.6",
-  "description": "Sync Obsidian permanent notes to Google NotebookLM",
+  "name": "obsidian-notebooklm-hub",
+  "version": "1.0.0",
+  "description": "Comprehensive NotebookLM integration for Obsidian — chat, notebooks, sources, studio, research",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "npx tsc --noEmit"
   },
-  "keywords": ["obsidian", "notebooklm", "sync", "zettelkasten"],
+  "keywords": ["obsidian", "notebooklm", "google", "ai", "chat", "research"],
   "author": "eohjun",
   "license": "MIT",
   "devDependencies": {
