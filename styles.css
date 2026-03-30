@@ -393,6 +393,53 @@
   cursor: not-allowed;
 }
 
+/* ─── File Drop Zone ──────────────────────────────────────── */
+
+.nlm-file-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 12px;
+  border: 2px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 8px;
+}
+
+.nlm-file-drop-zone:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+.nlm-file-drop-zone.nlm-drop-active {
+  border-color: var(--interactive-accent);
+  background: rgba(var(--interactive-accent-rgb), 0.1);
+}
+
+.nlm-drop-icon {
+  font-size: 24px;
+}
+
+.nlm-drop-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.nlm-file-path-row {
+  display: flex;
+  gap: 6px;
+}
+
+.nlm-file-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  min-height: 16px;
+}
+
 /* ─── Queue ───────────────────────────────────────────────── */
 
 .nlm-queue-list {

@@ -87,6 +87,12 @@ export class SourceTab {
   private renderInputForType(container: HTMLElement, type: string): void {
     container.empty();
 
+    if (type === 'file') {
+      this.renderFileInput(container);
+      return;
+    }
+
+    // Standard text input for url, text, drive
     const inputEl = container.createEl('input', {
       cls: 'nlm-source-input',
       attr: {
@@ -100,15 +106,14 @@ export class SourceTab {
       cls: 'nlm-source-add-btn',
     });
 
-    addBtn.addEventListener('click', async () => {
-      const value = inputEl.value.trim();
-      if (!value) {
-        new Notice('Please enter a value');
-        return;
-      }
-      if (!this.notebookId) {
-        new Notice('Please select a notebook first (Notebooks tab)');
-        return;
+    const doAdd = async () => {
+      let value = inputEl.value.trim();
+      if (!value) { new Notice('Please enter a value'); return; }
+      if (!this.notebookId) { new Notice('Please select a notebook first (Notebooks tab)'); return; }
+
+      // Auto-parse Drive URL → document ID
+      if (type === 'drive') {
+        value = extractDriveDocumentId(value);
       }
 
       addBtn.setAttr('disabled', 'true');
@@ -125,12 +130,96 @@ export class SourceTab {
         addBtn.removeAttribute('disabled');
         addBtn.setText('Add');
       }
+    };
+
+    addBtn.addEventListener('click', doAdd);
+    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+  }
+
+  /**
+   * File source input: drag-and-drop zone + browse button + text fallback.
+   */
+  private renderFileInput(container: HTMLElement): void {
+    // Hidden file input
+    const fileInput = container.createEl('input', {
+      attr: {
+        type: 'file',
+        accept: '.pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.mp3,.wav,.pptx,.xlsx',
+        style: 'display:none',
+      },
+    }) as HTMLInputElement;
+
+    // Drop zone
+    const dropZone = container.createDiv({ cls: 'nlm-file-drop-zone' });
+    dropZone.createEl('span', { text: '📁', cls: 'nlm-drop-icon' });
+    dropZone.createEl('span', { text: 'Drop file here or click to browse', cls: 'nlm-drop-text' });
+
+    // Text input for manual path entry
+    const pathRow = container.createDiv({ cls: 'nlm-file-path-row' });
+    const pathInput = pathRow.createEl('input', {
+      cls: 'nlm-source-input',
+      attr: { type: 'text', placeholder: 'Or paste file path here' },
+    }) as HTMLInputElement;
+    const addBtn = pathRow.createEl('button', { text: 'Add', cls: 'nlm-source-add-btn' });
+
+    // Status display
+    const statusEl = container.createDiv({ cls: 'nlm-file-status' });
+
+    // Click drop zone → open file picker
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    // Drag events
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('nlm-drop-active');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('nlm-drop-active');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('nlm-drop-active');
+      const file = e.dataTransfer?.files[0];
+      if (file) {
+        pathInput.value = (file as any).path || file.name;
+        statusEl.setText(`Selected: ${file.name}`);
+      }
     });
 
-    // Enter key support
-    inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') addBtn.click();
+    // File input change
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) {
+        pathInput.value = (file as any).path || file.name;
+        statusEl.setText(`Selected: ${file.name}`);
+      }
     });
+
+    // Add button
+    const doAdd = async () => {
+      const value = pathInput.value.trim();
+      if (!value) { new Notice('Select or enter a file path'); return; }
+      if (!this.notebookId) { new Notice('Please select a notebook first (Notebooks tab)'); return; }
+
+      addBtn.setAttr('disabled', 'true');
+      addBtn.setText('Adding...');
+
+      try {
+        await this.manageSources.addFile(this.notebookId, value);
+        pathInput.value = '';
+        statusEl.setText('');
+        new Notice('File source added successfully');
+        await this.refresh();
+      } catch (e) {
+        new Notice(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        addBtn.removeAttribute('disabled');
+        addBtn.setText('Add');
+      }
+    };
+
+    addBtn.addEventListener('click', doAdd);
+    pathInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
   }
 
   private getPlaceholder(type: string): string {
@@ -138,7 +227,7 @@ export class SourceTab {
       case 'url': return 'https://example.com or YouTube URL';
       case 'text': return 'Paste text content here';
       case 'file': return '/path/to/document.pdf';
-      case 'drive': return 'Google Drive document ID';
+      case 'drive': return 'Google Drive URL or document ID';
       default: return 'Enter value';
     }
   }
@@ -200,6 +289,8 @@ export class SourceTab {
     }
   }
 
+  // ─────────────────────────────────────────────────────────
+
   private renderSourceItem(parent: HTMLElement, source: Source): void {
     const item = parent.createDiv({ cls: 'nlm-source-item' });
 
@@ -231,4 +322,33 @@ export class SourceTab {
       }
     });
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Extract Google Drive document ID from a URL or return the raw input if it's already an ID.
+ *
+ * Supported URL formats:
+ * - https://docs.google.com/document/d/{ID}/edit
+ * - https://docs.google.com/spreadsheets/d/{ID}/edit
+ * - https://docs.google.com/presentation/d/{ID}/edit
+ * - https://drive.google.com/file/d/{ID}/view
+ * - https://drive.google.com/open?id={ID}
+ */
+function extractDriveDocumentId(input: string): string {
+  const trimmed = input.trim();
+
+  // Pattern: /d/{ID}/ in URL path
+  const pathMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (pathMatch) return pathMatch[1];
+
+  // Pattern: ?id={ID} in query string
+  const queryMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (queryMatch) return queryMatch[1];
+
+  // Not a URL — assume raw document ID
+  return trimmed;
 }
