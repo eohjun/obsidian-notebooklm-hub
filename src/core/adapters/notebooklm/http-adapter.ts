@@ -68,13 +68,13 @@ export class NotebookLMHttpAdapter implements INotebookLMClient {
   private async ensureInitialized(): Promise<void> {
     if (this.initialized) return;
 
-    const initResult = await this.sendJsonRpc('initialize', {
+    await this.sendJsonRpc('initialize', {
       protocolVersion: '2025-03-26',
       capabilities: {},
-      clientInfo: { name: 'obsidian-notebooklm-hub', version: '1.0.0' },
+      clientInfo: { name: 'obsidian-notebooklm-hub', version: '1.0.1' },
     });
 
-    this.sessionId = initResult._sessionId;
+    // Session ID is captured from response headers by sendJsonRpc
     this.initialized = true;
 
     // Send initialized notification
@@ -104,6 +104,12 @@ export class NotebookLMHttpAdapter implements INotebookLMClient {
 
     const response = await requestUrl(reqParams);
 
+    // Capture session ID from response headers (always, before error check)
+    const sid = this.findHeader(response.headers, 'mcp-session-id');
+    if (sid) {
+      this.sessionId = sid;
+    }
+
     if (response.status >= 400) {
       throw new McpError(
         `MCP server error (${response.status}): ${response.text}`,
@@ -112,18 +118,13 @@ export class NotebookLMHttpAdapter implements INotebookLMClient {
     }
 
     // Parse response — may be JSON or SSE
-    const contentType = response.headers['content-type'] || '';
+    const contentType = this.findHeader(response.headers, 'content-type') || '';
 
     if (contentType.includes('text/event-stream')) {
       return this.parseSSEResponse(response.text);
     }
 
     const json = response.json;
-
-    // Capture session ID from response
-    if (response.headers['mcp-session-id']) {
-      this.sessionId = response.headers['mcp-session-id'];
-    }
 
     if (json.error) {
       throw new McpError(
@@ -133,6 +134,20 @@ export class NotebookLMHttpAdapter implements INotebookLMClient {
     }
 
     return json.result;
+  }
+
+  /**
+   * Case-insensitive header lookup.
+   * Obsidian's requestUrl may return headers in any case.
+   */
+  private findHeader(headers: Record<string, string>, name: string): string | undefined {
+    const lower = name.toLowerCase();
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase() === lower) {
+        return headers[key];
+      }
+    }
+    return undefined;
   }
 
   private async sendNotification(method: string, params: Record<string, unknown>): Promise<void> {

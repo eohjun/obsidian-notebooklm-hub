@@ -1,6 +1,6 @@
 {
   "name": "obsidian-notebooklm-hub",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Comprehensive NotebookLM integration for Obsidian — chat, notebooks, sources, studio, research",
   "main": "main.js",
   "scripts": {
