@@ -724,7 +724,7 @@
 .nlm-artifact-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 6px;
   margin-bottom: 8px;
 }
 
@@ -732,8 +732,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 4px;
+  gap: 4px;
+  padding: 14px 4px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
   background: var(--background-primary);
@@ -755,11 +755,11 @@
 }
 
 .nlm-artifact-icon {
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .nlm-artifact-label {
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
