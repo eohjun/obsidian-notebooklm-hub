@@ -75,6 +75,7 @@ export default class NotebookLMHubPlugin extends Plugin {
       host: this.settings.mcpHost,
       port: this.settings.mcpPort,
       nlmPath: this.settings.nlmPath,
+      mcpServerPath: this.settings.mcpServerPath,
     });
 
     // ── Initialize use cases ────────────────────────────────
@@ -273,6 +274,7 @@ export default class NotebookLMHubPlugin extends Plugin {
       host: this.settings.mcpHost,
       port: this.settings.mcpPort,
       nlmPath: this.settings.nlmPath,
+      mcpServerPath: this.settings.mcpServerPath,
     });
   }
 

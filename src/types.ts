@@ -12,6 +12,7 @@ export interface NotebookLMHubSettings {
   mcpPort: number;
   autoStartServer: boolean;
   nlmPath: string;
+  mcpServerPath: string;
 
   // ── Note saving ───────────────────────────────────────────
   noteSaveFolder: string;
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: NotebookLMHubSettings = {
   mcpPort: DEFAULT_MCP_PORT,
   autoStartServer: true,
   nlmPath: 'nlm',
+  mcpServerPath: 'notebooklm-mcp',
 
   // Note saving
   noteSaveFolder: '00_Inbox',
@@ -67,6 +69,7 @@ export function migrateSettings(data: any): NotebookLMHubSettings {
   if (data.mcpPort) settings.mcpPort = data.mcpPort;
   if (data.autoStartServer !== undefined) settings.autoStartServer = data.autoStartServer;
   if (data.nlmPath) settings.nlmPath = data.nlmPath;
+  if (data.mcpServerPath) settings.mcpServerPath = data.mcpServerPath;
   if (data.noteSaveFolder) settings.noteSaveFolder = data.noteSaveFolder;
   if (data.downloadFolder) settings.downloadFolder = data.downloadFolder;
   if (data.activeTab) settings.activeTab = data.activeTab;

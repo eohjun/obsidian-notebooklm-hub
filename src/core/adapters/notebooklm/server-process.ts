@@ -18,21 +18,25 @@ export class ServerProcessAdapter implements IServerProcess {
   private host: string;
   private port: number;
   private nlmPath: string;
+  private mcpServerPath: string;
 
   constructor(options: {
     host?: string;
     port?: number;
     nlmPath?: string;
+    mcpServerPath?: string;
   } = {}) {
     this.host = options.host ?? DEFAULT_MCP_HOST;
     this.port = options.port ?? DEFAULT_MCP_PORT;
     this.nlmPath = options.nlmPath ?? 'nlm';
+    this.mcpServerPath = options.mcpServerPath ?? 'notebooklm-mcp';
   }
 
-  updateConfig(options: { host?: string; port?: number; nlmPath?: string }): void {
+  updateConfig(options: { host?: string; port?: number; nlmPath?: string; mcpServerPath?: string }): void {
     if (options.host) this.host = options.host;
     if (options.port) this.port = options.port;
     if (options.nlmPath) this.nlmPath = options.nlmPath;
+    if (options.mcpServerPath) this.mcpServerPath = options.mcpServerPath;
   }
 
   getHealthUrl(): string {
@@ -66,7 +70,8 @@ export class ServerProcessAdapter implements IServerProcess {
     }
 
     return new Promise<void>((resolve, reject) => {
-      const cmd = `${this.nlmPath} serve --transport http --host ${this.host} --port ${this.port}`;
+      // notebooklm-mcp is the MCP server binary; configured via env vars
+      const cmd = this.mcpServerPath;
 
       this.process = exec(cmd, {
         env: {
@@ -128,13 +133,17 @@ export class ServerProcessAdapter implements IServerProcess {
   }
 
   /**
-   * Check if the nlm CLI is installed and accessible.
+   * Check if the nlm CLI and notebooklm-mcp server are installed.
    */
   async isNlmInstalled(): Promise<boolean> {
+    const nlmOk = await this.checkCommand(`${this.nlmPath} --version`);
+    const mcpOk = await this.checkCommand(`${this.mcpServerPath} --help`);
+    return nlmOk && mcpOk;
+  }
+
+  private checkCommand(cmd: string): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
-      exec(`${this.nlmPath} --version`, (error) => {
-        resolve(!error);
-      });
+      exec(cmd, (error) => resolve(!error));
     });
   }
 
