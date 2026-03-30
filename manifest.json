@@ -1,7 +1,7 @@
 {
   "id": "notebooklm-hub",
   "name": "NotebookLM Hub",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "minAppVersion": "1.0.0",
   "description": "Comprehensive NotebookLM integration — chat, notebooks, sources, studio artifacts, research, batch operations",
   "author": "eohjun",
