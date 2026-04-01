@@ -1,7 +1,9 @@
 import { Notice, setIcon } from 'obsidian';
+import type { App } from 'obsidian';
 import type { ManageSources } from '../../core/application/use-cases/manage-sources';
 import type { ManageNotebooks } from '../../core/application/use-cases/manage-notebooks';
 import type { Source } from '../../core/domain/entities';
+import { ConfirmModal } from '../modals/confirm-modal';
 
 const SOURCE_TYPE_ICONS: Record<string, string> = {
   url: '🔗',
@@ -20,6 +22,7 @@ export class SourceTab {
   private notebookId = '';
 
   constructor(
+    private app: App,
     private manageSources: ManageSources,
     private manageNotebooks: ManageNotebooks,
   ) {}
@@ -256,7 +259,7 @@ export class SourceTab {
 
     if (!this.notebookId) {
       listEl.createDiv({
-        text: 'Select a notebook from the Notebooks tab to view sources.',
+        text: 'No notebook selected.',
         cls: 'nlm-empty-state',
       });
       return;
@@ -312,7 +315,10 @@ export class SourceTab {
     });
     setIcon(deleteBtn, 'trash-2');
     deleteBtn.addEventListener('click', async () => {
-      if (!window.confirm(`Delete source "${source.title}"?`)) return;
+      const confirmed = await new ConfirmModal(
+        this.app, 'Delete Source', `Delete source "${source.title}"?`, 'Delete', true,
+      ).openAndWait();
+      if (!confirmed) return;
       try {
         await this.manageSources.delete([source.id]);
         new Notice(`Deleted: ${source.title}`);

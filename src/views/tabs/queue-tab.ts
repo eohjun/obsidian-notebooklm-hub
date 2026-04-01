@@ -1,7 +1,9 @@
 import { Notice, setIcon } from 'obsidian';
+import type { App } from 'obsidian';
 import type { QueueService } from '../../core/application/services/queue-service';
 import type { SyncNotes } from '../../core/application/use-cases/sync-notes';
 import type { QueuedNote } from '../../core/domain/entities';
+import { ConfirmModal } from '../modals/confirm-modal';
 
 const STATUS_ICONS: Record<string, string> = {
   pending: '⏳',
@@ -20,6 +22,7 @@ export class QueueTab {
   private notebookId = '';
 
   constructor(
+    private app: App,
     private queueService: QueueService,
     private syncNotes: SyncNotes,
   ) {}
@@ -66,11 +69,13 @@ export class QueueTab {
       attr: { 'aria-label': 'Clear all' },
     });
     setIcon(clearAllBtn, 'trash-2');
-    clearAllBtn.addEventListener('click', () => {
-      if (window.confirm('Clear entire queue?')) {
-        this.queueService.clear();
-        new Notice('Queue cleared');
-      }
+    clearAllBtn.addEventListener('click', async () => {
+      const confirmed = await new ConfirmModal(
+        this.app, 'Clear Queue', 'Clear entire queue?', 'Clear All', true,
+      ).openAndWait();
+      if (!confirmed) return;
+      this.queueService.clear();
+      new Notice('Queue cleared');
     });
   }
 

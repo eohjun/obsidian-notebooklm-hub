@@ -568,16 +568,6 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.nlm-chat-notebook-select {
-  flex: 1;
-  padding: 4px 8px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  background: var(--background-primary);
-  color: var(--text-normal);
-  font-size: 12px;
-}
-
 .nlm-chat-header-actions {
   display: flex;
   gap: 2px;
@@ -645,6 +635,9 @@
 
 .nlm-chat-msg-actions {
   margin-top: 6px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .nlm-chat-save-btn {
@@ -681,6 +674,7 @@
 
 .nlm-chat-input-bar {
   display: flex;
+  align-items: flex-end;
   gap: 6px;
   padding: 8px 12px;
   border-top: 1px solid var(--background-modifier-border);
@@ -695,6 +689,12 @@
   background: var(--background-primary);
   color: var(--text-normal);
   font-size: 13px;
+  resize: none;
+  overflow-y: auto;
+  min-height: 36px;
+  max-height: 120px;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 .nlm-chat-input:focus {
@@ -1017,4 +1017,159 @@
 .nlm-setup-warning {
   color: var(--color-orange);
   font-weight: 500;
+}
+
+/* ─── Global Notebook Selector ────────────────────────────── */
+
+.nlm-hub-notebook-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.nlm-global-notebook-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 12px;
+}
+
+/* ─── Connection Error Banner ─────────────────────────────── */
+
+.nlm-connection-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--background-modifier-error, rgba(255, 0, 0, 0.1));
+  border-bottom: 1px solid var(--color-red);
+  font-size: 12px;
+  color: var(--color-red);
+}
+
+.nlm-connection-error-text {
+  flex: 1;
+}
+
+.nlm-retry-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--color-red);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-red);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.nlm-retry-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* ─── Collapsible Sections ────────────────────────────────── */
+
+.nlm-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 8px;
+}
+
+.nlm-collapsible-header:hover {
+  color: var(--text-normal);
+}
+
+.nlm-collapsible-header .nlm-section-title {
+  margin: 0;
+}
+
+.nlm-collapsible-chevron {
+  transition: transform 0.15s ease;
+  color: var(--text-muted);
+}
+
+.nlm-collapsible.collapsed .nlm-collapsible-chevron {
+  transform: rotate(-90deg);
+}
+
+.nlm-collapsible.collapsed .nlm-collapsible-body {
+  display: none;
+}
+
+/* ─── Obsidian Modals (Confirm / Input) ───────────────────── */
+
+.nlm-modal h3 {
+  margin: 0 0 8px 0;
+}
+
+.nlm-modal-body {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0 0 12px 0;
+}
+
+.nlm-modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.nlm-modal-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.nlm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nlm-modal-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nlm-modal-btn-secondary {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.nlm-modal-btn-secondary:hover {
+  background: var(--background-modifier-border);
+}
+
+.nlm-modal-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.nlm-modal-btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.nlm-modal-btn-danger {
+  background: var(--color-red);
+  color: white;
+}
+
+.nlm-modal-btn-danger:hover {
+  filter: brightness(1.1);
 }

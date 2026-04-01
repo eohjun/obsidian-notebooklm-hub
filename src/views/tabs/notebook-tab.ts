@@ -1,6 +1,9 @@
 import { Notice, setIcon } from 'obsidian';
+import type { App } from 'obsidian';
 import type { ManageNotebooks } from '../../core/application/use-cases/manage-notebooks';
 import type { Notebook, NotebookDetail } from '../../core/domain/entities';
+import { ConfirmModal } from '../modals/confirm-modal';
+import { InputModal } from '../modals/input-modal';
 
 /**
  * Tab: Notebook browser — list, create, delete, rename notebooks.
@@ -11,8 +14,10 @@ export class NotebookTab {
   private notebooks: Notebook[] = [];
   private selectedNotebookId: string;
   private onNotebookSelect?: (notebookId: string) => void;
+  private onNotebooksChanged?: () => void;
 
   constructor(
+    private app: App,
     private manageNotebooks: ManageNotebooks,
     initialNotebookId: string,
   ) {
@@ -21,6 +26,10 @@ export class NotebookTab {
 
   setOnNotebookSelect(handler: (notebookId: string) => void): void {
     this.onNotebookSelect = handler;
+  }
+
+  setOnNotebooksChanged(handler: () => void): void {
+    this.onNotebooksChanged = handler;
   }
 
   render(parent: HTMLElement): void {
@@ -131,36 +140,41 @@ export class NotebookTab {
   }
 
   private async promptCreate(): Promise<void> {
-    const title = await promptInput('New Notebook', 'Enter notebook title:');
+    const title = await new InputModal(
+      this.app, 'New Notebook', 'Enter notebook title:', '', 'My Notebook',
+    ).openAndWait();
     if (!title) return;
 
     try {
       const nb = await this.manageNotebooks.create(title);
       new Notice(`Created: ${nb.title}`);
       await this.refresh();
+      this.onNotebooksChanged?.();
     } catch (e) {
       new Notice(`Failed to create notebook: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   private async promptRename(nb: Notebook): Promise<void> {
-    const newTitle = await promptInput('Rename Notebook', 'New title:', nb.title);
+    const newTitle = await new InputModal(
+      this.app, 'Rename Notebook', 'New title:', nb.title,
+    ).openAndWait();
     if (!newTitle || newTitle === nb.title) return;
 
     try {
       await this.manageNotebooks.rename(nb.id, newTitle);
       new Notice(`Renamed to: ${newTitle}`);
       await this.refresh();
+      this.onNotebooksChanged?.();
     } catch (e) {
       new Notice(`Failed to rename: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   private async promptDelete(nb: Notebook): Promise<void> {
-    const confirmed = await promptConfirm(
-      'Delete Notebook',
-      `Delete "${nb.title}"? This is irreversible.`,
-    );
+    const confirmed = await new ConfirmModal(
+      this.app, 'Delete Notebook', `Delete "${nb.title}"? This is irreversible.`, 'Delete', true,
+    ).openAndWait();
     if (!confirmed) return;
 
     try {
@@ -171,6 +185,7 @@ export class NotebookTab {
         this.onNotebookSelect?.('');
       }
       await this.refresh();
+      this.onNotebooksChanged?.();
     } catch (e) {
       new Notice(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -179,21 +194,4 @@ export class NotebookTab {
   getSelectedNotebookId(): string {
     return this.selectedNotebookId;
   }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Simple prompt helpers (no Obsidian Modal dependency)
-// ─────────────────────────────────────────────────────────────
-
-function promptInput(title: string, message: string, defaultValue = ''): Promise<string | null> {
-  return new Promise((resolve) => {
-    const value = window.prompt(message, defaultValue);
-    resolve(value);
-  });
-}
-
-function promptConfirm(title: string, message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    resolve(window.confirm(message));
-  });
 }

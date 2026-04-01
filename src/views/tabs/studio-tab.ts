@@ -1,8 +1,10 @@
 import { Notice, setIcon } from 'obsidian';
+import type { App } from 'obsidian';
 import type { CreateArtifact } from '../../core/application/use-cases/create-artifact';
 import type { RunResearch } from '../../core/application/use-cases/run-research';
 import type { StudioArtifact, ResearchTask, DiscoveredSource } from '../../core/domain/entities';
 import type { ArtifactType } from '../../core/domain/value-objects';
+import { ConfirmModal } from '../modals/confirm-modal';
 
 interface ArtifactOption {
   type: ArtifactType;
@@ -45,16 +47,45 @@ export class StudioTab {
   private artifacts: StudioArtifact[] = [];
 
   constructor(
+    private app: App,
     private createArtifact: CreateArtifact,
     private runResearch: RunResearch,
   ) {}
 
   render(parent: HTMLElement): void {
     this.container = parent.createDiv({ cls: 'nlm-studio-tab' });
-    this.renderArtifactCreator();
-    this.renderArtifactList();
-    this.renderResearchPanel();
+
+    const createBody = this.createCollapsibleSection(this.container, 'Create Artifact', true);
+    this.renderArtifactCreator(createBody);
+
+    const artifactsBody = this.createCollapsibleSection(this.container, 'Artifacts', true);
+    this.renderArtifactList(artifactsBody);
+
+    const researchBody = this.createCollapsibleSection(this.container, 'Research', false);
+    this.renderResearchPanel(researchBody);
+
     if (this.notebookId) this.refreshArtifacts();
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Collapsible Section Helper
+  // ─────────────────────────────────────────────────────────
+
+  private createCollapsibleSection(parent: HTMLElement, title: string, defaultOpen: boolean): HTMLElement {
+    const section = parent.createDiv({ cls: `nlm-studio-section nlm-collapsible ${defaultOpen ? '' : 'collapsed'}` });
+
+    const header = section.createDiv({ cls: 'nlm-collapsible-header' });
+    header.createEl('span', { text: title, cls: 'nlm-section-title' });
+    const chevron = header.createEl('span', { cls: 'nlm-collapsible-chevron' });
+    setIcon(chevron, 'chevron-down');
+
+    const body = section.createDiv({ cls: 'nlm-collapsible-body' });
+
+    header.addEventListener('click', () => {
+      section.classList.toggle('collapsed');
+    });
+
+    return body;
   }
 
   setNotebookId(id: string): void {
@@ -65,10 +96,7 @@ export class StudioTab {
   // Artifact Creator
   // ─────────────────────────────────────────────────────────
 
-  private renderArtifactCreator(): void {
-    const section = this.container.createDiv({ cls: 'nlm-studio-section' });
-    section.createEl('h5', { text: 'Create Artifact', cls: 'nlm-section-title' });
-
+  private renderArtifactCreator(section: HTMLElement): void {
     // Type grid
     const grid = section.createDiv({ cls: 'nlm-artifact-grid' });
     for (const opt of ARTIFACT_TYPES) {
@@ -164,11 +192,8 @@ export class StudioTab {
   // Artifact List
   // ─────────────────────────────────────────────────────────
 
-  private renderArtifactList(): void {
-    const section = this.container.createDiv({ cls: 'nlm-studio-section' });
-
+  private renderArtifactList(section: HTMLElement): void {
     const header = section.createDiv({ cls: 'nlm-section-header' });
-    header.createEl('h5', { text: 'Artifacts', cls: 'nlm-section-title' });
     const refreshBtn = header.createEl('button', { cls: 'nlm-toolbar-btn', attr: { 'aria-label': 'Refresh' } });
     setIcon(refreshBtn, 'refresh-cw');
     refreshBtn.addEventListener('click', () => this.refreshArtifacts());
@@ -219,7 +244,10 @@ export class StudioTab {
         const delBtn = actions.createEl('button', { cls: 'nlm-action-btn nlm-action-danger', attr: { 'aria-label': 'Delete' } });
         setIcon(delBtn, 'trash-2');
         delBtn.addEventListener('click', async () => {
-          if (!window.confirm(`Delete this ${a.type} artifact?`)) return;
+          const confirmed = await new ConfirmModal(
+            this.app, 'Delete Artifact', `Delete this ${a.type} artifact?`, 'Delete', true,
+          ).openAndWait();
+          if (!confirmed) return;
           try {
             await this.createArtifact.delete(this.notebookId, a.id);
             new Notice('Deleted');
@@ -239,10 +267,7 @@ export class StudioTab {
   // Research Panel
   // ─────────────────────────────────────────────────────────
 
-  private renderResearchPanel(): void {
-    const section = this.container.createDiv({ cls: 'nlm-studio-section' });
-    section.createEl('h5', { text: 'Research', cls: 'nlm-section-title' });
-
+  private renderResearchPanel(section: HTMLElement): void {
     const row = section.createDiv({ cls: 'nlm-research-input-row' });
     const input = row.createEl('input', {
       cls: 'nlm-source-input',

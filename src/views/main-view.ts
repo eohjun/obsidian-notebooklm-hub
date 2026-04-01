@@ -1,7 +1,7 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
-import { VIEW_TYPE_NOTEBOOKLM } from '../constants';
+import { ItemView, WorkspaceLeaf, Notice, setIcon } from 'obsidian';
+import { VIEW_TYPE_NOTEBOOKLM, HEALTH_CHECK_INTERVAL_MS } from '../constants';
 import type NotebookLMHubPlugin from '../main';
-import type { ServerStatus } from '../core/domain/entities';
+import type { ServerStatus, Notebook } from '../core/domain/entities';
 import { ChatTab } from './tabs/chat-tab';
 import { NotebookTab } from './tabs/notebook-tab';
 import { SourceTab } from './tabs/source-tab';
@@ -25,6 +25,9 @@ export class MainView extends ItemView {
   private statusEl!: HTMLElement;
   private tabContainer!: HTMLElement;
   private contentContainer!: HTMLElement;
+  private notebookSelectEl!: HTMLSelectElement;
+  private errorBannerEl!: HTMLElement;
+  private healthCheckInterval?: ReturnType<typeof setInterval>;
 
   // Tab instances (created once, rendered on demand)
   private chatTab?: ChatTab;
@@ -54,6 +57,32 @@ export class MainView extends ItemView {
     this.statusEl = header.createEl('span', { cls: 'nlm-hub-status' });
     this.updateStatus({ connectionStatus: 'connecting' });
 
+    // ── Connection Error Banner (hidden by default) ───────
+    this.errorBannerEl = container.createDiv({ cls: 'nlm-connection-error' });
+    this.errorBannerEl.style.display = 'none';
+    this.errorBannerEl.createEl('span', { text: 'Server disconnected', cls: 'nlm-connection-error-text' });
+    const retryBtn = this.errorBannerEl.createEl('button', { text: 'Retry', cls: 'nlm-retry-btn' });
+    retryBtn.addEventListener('click', () => this.checkServerStatus());
+
+    // ── Global Notebook Selector ──────────────────────────
+    const notebookBar = container.createDiv({ cls: 'nlm-hub-notebook-bar' });
+    this.notebookSelectEl = notebookBar.createEl('select', { cls: 'nlm-global-notebook-select' });
+    this.notebookSelectEl.createEl('option', { text: 'Select notebook...', attr: { value: '' } });
+    this.notebookSelectEl.addEventListener('change', () => {
+      const id = this.notebookSelectEl.value;
+      const opt = this.notebookSelectEl.selectedOptions[0];
+      const title = opt?.text || '';
+      this.onNotebookSelected(id);
+      this.chatTab?.setNotebookTitle(title);
+    });
+
+    const nbRefreshBtn = notebookBar.createEl('button', {
+      cls: 'nlm-toolbar-btn',
+      attr: { 'aria-label': 'Refresh notebooks' },
+    });
+    setIcon(nbRefreshBtn, 'refresh-cw');
+    nbRefreshBtn.addEventListener('click', () => this.loadGlobalNotebooks());
+
     // ── Tabs ──────────────────────────────────────────────
     this.tabContainer = container.createDiv({ cls: 'nlm-hub-tabs' });
     for (const tab of TABS) {
@@ -72,13 +101,52 @@ export class MainView extends ItemView {
     // Initialize tab instances
     this.initTabs();
     this.renderTab(this.activeTab);
+    this.loadGlobalNotebooks();
     this.checkServerStatus();
+
+    // ── Periodic Health Check ─────────────────────────────
+    this.healthCheckInterval = setInterval(
+      () => this.checkServerStatus(),
+      HEALTH_CHECK_INTERVAL_MS,
+    );
   }
 
   async onClose(): Promise<void> {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
     this.queueTab?.destroy();
     this.plugin.settings.activeTab = this.activeTab;
     await this.plugin.saveSettings();
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Global Notebook Selector
+  // ─────────────────────────────────────────────────────────
+
+  async loadGlobalNotebooks(): Promise<void> {
+    try {
+      const notebooks = await this.plugin.manageNotebooks.list();
+      const currentId = this.plugin.settings.selectedNotebookId;
+
+      // Clear existing options (except placeholder)
+      while (this.notebookSelectEl.options.length > 1) {
+        this.notebookSelectEl.remove(1);
+      }
+
+      for (const nb of notebooks) {
+        const opt = this.notebookSelectEl.createEl('option', {
+          text: nb.title,
+          attr: { value: nb.id },
+        });
+        if (nb.id === currentId) {
+          opt.selected = true;
+          this.chatTab?.setNotebookTitle(nb.title);
+        }
+      }
+    } catch (e) {
+      // Silently fail — user can retry or notebooks may not be loaded yet
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -86,29 +154,37 @@ export class MainView extends ItemView {
   // ─────────────────────────────────────────────────────────
 
   private initTabs(): void {
+    const app = this.plugin.app;
     const { manageNotebooks, manageSources, syncNotes, queueService, queryNotebook, saveAsNote, createArtifact, runResearch } = this.plugin;
 
     this.chatTab = new ChatTab(
-      this.plugin.app,
+      app,
       queryNotebook,
       saveAsNote,
-      manageNotebooks,
       this.plugin.settings.selectedNotebookId,
     );
 
-    this.notebookTab = new NotebookTab(manageNotebooks, this.plugin.settings.selectedNotebookId);
-    this.notebookTab.setOnNotebookSelect((id) => this.onNotebookSelected(id));
+    this.notebookTab = new NotebookTab(app, manageNotebooks, this.plugin.settings.selectedNotebookId);
+    this.notebookTab.setOnNotebookSelect((id) => {
+      this.onNotebookSelected(id);
+      // Sync the global dropdown
+      this.notebookSelectEl.value = id;
+      const title = this.notebookSelectEl.selectedOptions[0]?.text || '';
+      this.chatTab?.setNotebookTitle(title);
+    });
+    this.notebookTab.setOnNotebooksChanged(() => this.loadGlobalNotebooks());
 
-    this.sourceTab = new SourceTab(manageSources, manageNotebooks);
+    this.sourceTab = new SourceTab(app, manageSources, manageNotebooks);
 
-    this.studioTab = new StudioTab(createArtifact, runResearch);
+    this.studioTab = new StudioTab(app, createArtifact, runResearch);
 
-    this.queueTab = new QueueTab(queueService, syncNotes);
+    this.queueTab = new QueueTab(app, queueService, syncNotes);
 
     // Set initial notebook context
     const nbId = this.plugin.settings.selectedNotebookId;
     if (nbId) {
       this.sourceTab.setNotebookId(nbId);
+      this.studioTab.setNotebookId(nbId);
       this.queueTab.setNotebookId(nbId);
     }
   }
@@ -157,14 +233,8 @@ export class MainView extends ItemView {
     }
   }
 
-  private renderPlaceholder(title: string, description: string): void {
-    const wrapper = this.contentContainer.createDiv({ cls: 'nlm-tab-placeholder' });
-    wrapper.createEl('h4', { text: title });
-    wrapper.createEl('p', { text: description, cls: 'nlm-tab-placeholder-desc' });
-  }
-
   // ─────────────────────────────────────────────────────────
-  // Status
+  // Status & Health Check
   // ─────────────────────────────────────────────────────────
 
   updateStatus(status: ServerStatus): void {
@@ -184,6 +254,20 @@ export class MainView extends ItemView {
     const [cls, text] = map[status.connectionStatus] || map.error;
     dot.addClass(cls);
     label.setText(text);
+
+    // Toggle error banner
+    if (this.errorBannerEl) {
+      const showBanner = status.connectionStatus === 'disconnected' || status.connectionStatus === 'error';
+      this.errorBannerEl.style.display = showBanner ? 'flex' : 'none';
+      if (showBanner) {
+        const errorText = this.errorBannerEl.querySelector('.nlm-connection-error-text');
+        if (errorText) {
+          errorText.textContent = status.error
+            ? `Server error: ${status.error}`
+            : 'Server disconnected';
+        }
+      }
+    }
   }
 
   private async checkServerStatus(): Promise<void> {

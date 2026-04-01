@@ -2,25 +2,25 @@ import { Notice, setIcon, MarkdownRenderer } from 'obsidian';
 import type { App } from 'obsidian';
 import type { QueryNotebook } from '../../core/application/use-cases/query-notebook';
 import type { SaveAsNote } from '../../core/application/use-cases/save-as-note';
-import type { ManageNotebooks } from '../../core/application/use-cases/manage-notebooks';
-import type { ChatMessage, Notebook, QueryResponse } from '../../core/domain/entities';
+import type { ChatMessage } from '../../core/domain/entities';
+import { ConfirmModal } from '../modals/confirm-modal';
 
 /**
  * Tab: Chat — query NotebookLM and save responses as Obsidian notes.
  *
  * Features:
- * - Notebook selector dropdown
  * - Message list (user/assistant with citations)
- * - Input bar with send button
- * - "Save as note" per response and "Export session"
+ * - Multi-line input with auto-grow
+ * - Copy / "Save as note" per response
+ * - "Export session"
+ *
+ * Notebook selection is handled by the global selector in MainView.
  */
 export class ChatTab {
   private container!: HTMLElement;
   private messageListEl!: HTMLElement;
-  private inputEl!: HTMLInputElement;
+  private inputEl!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
-  private notebookSelect!: HTMLSelectElement;
-  private notebooks: Notebook[] = [];
   private selectedNotebookId = '';
   private selectedNotebookTitle = '';
   private isSending = false;
@@ -29,7 +29,6 @@ export class ChatTab {
     private app: App,
     private queryNotebook: QueryNotebook,
     private saveAsNote: SaveAsNote,
-    private manageNotebooks: ManageNotebooks,
     initialNotebookId: string,
   ) {
     this.selectedNotebookId = initialNotebookId;
@@ -41,33 +40,26 @@ export class ChatTab {
     this.renderHeader();
     this.renderMessageList();
     this.renderInputBar();
-    this.loadNotebooks();
     this.renderExistingMessages();
   }
 
   setNotebookId(id: string): void {
     this.selectedNotebookId = id;
-    if (this.notebookSelect) {
-      this.notebookSelect.value = id;
-    }
     this.renderExistingMessages();
   }
 
+  setNotebookTitle(title: string): void {
+    this.selectedNotebookTitle = title;
+  }
+
   // ─────────────────────────────────────────────────────────
-  // Header: notebook selector + actions
+  // Header: action buttons only (notebook selector is global)
   // ─────────────────────────────────────────────────────────
 
   private renderHeader(): void {
     const header = this.container.createDiv({ cls: 'nlm-chat-header' });
 
-    this.notebookSelect = header.createEl('select', { cls: 'nlm-chat-notebook-select' });
-    this.notebookSelect.createEl('option', { text: 'Select notebook...', attr: { value: '' } });
-    this.notebookSelect.addEventListener('change', () => {
-      this.selectedNotebookId = this.notebookSelect.value;
-      const opt = this.notebookSelect.selectedOptions[0];
-      this.selectedNotebookTitle = opt?.text || '';
-      this.renderExistingMessages();
-    });
+    header.createEl('span', { text: 'Chat', cls: 'nlm-toolbar-title' });
 
     const actions = header.createDiv({ cls: 'nlm-chat-header-actions' });
 
@@ -100,7 +92,7 @@ export class ChatTab {
 
     if (!this.selectedNotebookId) {
       this.messageListEl.createDiv({
-        text: 'Select a notebook above to start chatting.',
+        text: 'Select a notebook to start chatting.',
         cls: 'nlm-empty-state',
       });
       return;
@@ -148,8 +140,21 @@ export class ChatTab {
         }
       }
 
-      // Save as note button
+      // Action buttons
       const actionsEl = wrapper.createDiv({ cls: 'nlm-chat-msg-actions' });
+
+      const copyBtn = actionsEl.createEl('button', {
+        cls: 'nlm-chat-save-btn',
+        attr: { 'aria-label': 'Copy to clipboard' },
+      });
+      setIcon(copyBtn, 'copy');
+      const copyLabel = copyBtn.createEl('span', { text: 'Copy' });
+      copyBtn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(msg.content);
+        copyLabel.setText('Copied!');
+        setTimeout(() => copyLabel.setText('Copy'), 1500);
+      });
+
       const saveBtn = actionsEl.createEl('button', {
         cls: 'nlm-chat-save-btn',
         attr: { 'aria-label': 'Save as note' },
@@ -175,19 +180,25 @@ export class ChatTab {
   private renderInputBar(): void {
     const bar = this.container.createDiv({ cls: 'nlm-chat-input-bar' });
 
-    this.inputEl = bar.createEl('input', {
+    this.inputEl = bar.createEl('textarea', {
       cls: 'nlm-chat-input',
       attr: {
-        type: 'text',
         placeholder: 'Ask about this notebook...',
+        rows: '1',
       },
-    });
+    }) as HTMLTextAreaElement;
 
     this.sendBtn = bar.createEl('button', {
       cls: 'nlm-chat-send-btn',
       attr: { 'aria-label': 'Send' },
     });
     setIcon(this.sendBtn, 'send');
+
+    // Auto-grow textarea
+    this.inputEl.addEventListener('input', () => {
+      this.inputEl.style.height = 'auto';
+      this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 120) + 'px';
+    });
 
     this.inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -212,6 +223,7 @@ export class ChatTab {
 
     this.isSending = true;
     this.inputEl.value = '';
+    this.inputEl.style.height = 'auto';
     this.setSendingState(true);
 
     // Show user message immediately
@@ -312,38 +324,14 @@ export class ChatTab {
     }
   }
 
-  private clearChat(): void {
+  private async clearChat(): Promise<void> {
     if (!this.selectedNotebookId) return;
+    const confirmed = await new ConfirmModal(
+      this.app, 'Clear Chat', 'Clear all messages in this session?', 'Clear', true,
+    ).openAndWait();
+    if (!confirmed) return;
     this.queryNotebook.clearSession(this.selectedNotebookId);
     this.renderExistingMessages();
     new Notice('Chat cleared');
-  }
-
-  // ─────────────────────────────────────────────────────────
-  // Notebook Loading
-  // ─────────────────────────────────────────────────────────
-
-  private async loadNotebooks(): Promise<void> {
-    try {
-      this.notebooks = await this.manageNotebooks.list();
-
-      // Clear existing options (except placeholder)
-      while (this.notebookSelect.options.length > 1) {
-        this.notebookSelect.remove(1);
-      }
-
-      for (const nb of this.notebooks) {
-        const opt = this.notebookSelect.createEl('option', {
-          text: nb.title,
-          attr: { value: nb.id },
-        });
-        if (nb.id === this.selectedNotebookId) {
-          opt.selected = true;
-          this.selectedNotebookTitle = nb.title;
-        }
-      }
-    } catch (e) {
-      new Notice(`Failed to load notebooks: ${e instanceof Error ? e.message : String(e)}`);
-    }
   }
 }
