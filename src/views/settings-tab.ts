@@ -81,7 +81,7 @@ export class NotebookLMHubSettingTab extends PluginSettingTab {
               if (status.connectionStatus === 'connected') {
                 new Notice(`Connected! Server v${status.version || 'unknown'}`);
               } else if (status.connectionStatus === 'disconnected') {
-                new Notice('Server not running. Start with "nlm serve --transport http"');
+                new Notice('Server not running. Start with "notebooklm-mcp --transport http" or enable auto-start');
               } else {
                 new Notice(`Connection error: ${status.error}`);
               }

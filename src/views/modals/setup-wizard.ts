@@ -72,7 +72,7 @@ export class SetupWizard extends Modal {
         this.updateCheckItem(startCheck, true, 'Server started');
       } catch (e) {
         this.updateCheckItem(startCheck, false,
-          `Failed to start. Run manually: nlm serve --transport http`);
+          `Failed to start. Run manually: notebooklm-mcp --transport http`);
       }
     }
 
